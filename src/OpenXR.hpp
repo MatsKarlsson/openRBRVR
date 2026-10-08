@@ -59,7 +59,9 @@ private:
     InputState input_state; // For sending poses to OpenXR-MotionCompensation https://github.com/BuzzteeBear/OpenXR-MotionCompensation
     bool reset_view_requested;
     HandTracking hand_tracking;
-    std::vector<HandVertex> hand_vertices;
+    HandMesh hand_mesh;
+    IDirect3DTexture9* glove_texture = nullptr;
+    std::chrono::steady_clock::time_point last_glove_texture_attempt {};
     std::chrono::steady_clock::time_point last_hand_frame_log {};
     std::array<std::chrono::steady_clock::time_point, 4> last_hand_draw_log {};
     XrViewStateFlags hand_view_flags = 0;

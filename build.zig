@@ -33,6 +33,7 @@ pub fn build(b: *std.Build) void {
         "src/API.cpp",
         "src/Dx.cpp",
         "src/Globals.cpp",
+        "src/HandAssets.cpp",
         "src/HandMesh.cpp",
         "src/HandTracking.cpp",
         "src/Menu.cpp",
@@ -89,6 +90,7 @@ pub fn build(b: *std.Build) void {
     dll.linkSystemLibrary("version");
 
     b.installArtifact(dll);
+    b.installFile("assets/valve_hands/LICENSE", "bin/Valve-hand-models-LICENSE.txt");
 
     const hand_tests = b.addExecutable(.{
         .name = "hand-tests",
@@ -107,11 +109,32 @@ pub fn build(b: *std.Build) void {
     hand_tests.addIncludePath(b.path("thirdparty/dxvk/src/d3d9"));
     hand_tests.addIncludePath(b.path("thirdparty/dxvk/include/vulkan/include"));
     hand_tests.addCSourceFiles(.{
-        .files = &.{ "tests/Hands.cpp", "src/HandTracking.cpp", "src/HandMesh.cpp" },
+        .files = &.{ "tests/Hands.cpp", "src/HandTracking.cpp", "src/HandMesh.cpp", "src/HandAssets.cpp" },
         .flags = &.{ "-Wno-ignored-attributes", "-Wno-deprecated-literal-operator", "-Wno-unused-command-line-argument", "--std=c++23" },
     });
     const test_step = b.step("test", "Test hand tracking lifecycle, visibility, mesh and configuration");
     test_step.dependOn(&b.addRunArtifact(hand_tests).step);
+
+    // Optional real D3D9 smoke test: renders the embedded assets without RBR or
+    // a headset, including bind poses, palms and curled fingers.
+    const preview = b.addExecutable(.{
+        .name = "hand-preview",
+        .root_module = b.createModule(.{ .target = target, .optimize = optimize }),
+    });
+    preview.linkLibC();
+    preview.linkSystemLibrary("user32");
+    preview.linkSystemLibrary("d3d9");
+    preview.addIncludePath(b.path("src"));
+    preview.addIncludePath(b.path("thirdparty"));
+    preview.addIncludePath(b.path("thirdparty/glm"));
+    preview.addIncludePath(b.path("thirdparty/openxr"));
+    preview.addCSourceFiles(.{
+        .files = &.{ "tools/HandPreview.cpp", "src/HandAssets.cpp", "src/HandMesh.cpp" },
+        .flags = &.{ "-Wno-ignored-attributes", "--std=c++23" },
+    });
+    const preview_run = b.addRunArtifact(preview);
+    if (b.args) |args| preview_run.addArgs(args);
+    b.step("hand-preview", "Render Valve gloves with D3D9 to a BMP without a headset").dependOn(&preview_run.step);
 
     // For compile_commands.json
     var targets: std.ArrayListUnmanaged(*std.Build.Step.Compile) = .empty;

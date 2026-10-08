@@ -1,127 +1,52 @@
 #include "HandMesh.hpp"
 #include <algorithm>
 #include <cmath>
-#include <gtc/constants.hpp>
 
-namespace {
-    constexpr int sides = 8;
-
-    HandVertex vertex(glm::vec3 position, glm::vec3 normal)
-    {
-        const float light = 0.65f + 0.35f * std::max(0.0f, glm::dot(normal, glm::normalize(glm::vec3(-0.3f, 0.8f, 0.5f))));
-        return { position, D3DCOLOR_XRGB(static_cast<int>(215 * light), static_cast<int>(165 * light), static_cast<int>(130 * light)) };
-    }
-
-    void triangle(std::vector<HandVertex>& vertices, glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 normal)
-    {
-        vertices.push_back(vertex(a, normal));
-        vertices.push_back(vertex(b, normal));
-        vertices.push_back(vertex(c, normal));
-    }
-
-    glm::vec3 position(const XrHandJointLocationEXT& joint)
-    {
-        return { joint.pose.position.x, joint.pose.position.y, joint.pose.position.z };
-    }
-
-    float radius(const XrHandJointLocationEXT& joint)
-    {
-        return std::clamp(joint.radius, 0.003f, 0.018f);
-    }
-
-    void bone(std::vector<HandVertex>& vertices, const XrHandJointLocationEXT& a, const XrHandJointLocationEXT& b)
-    {
-        const auto start = position(a);
-        const auto end = position(b);
-        const auto delta = end - start;
-        if (glm::dot(delta, delta) < 0.000001f || glm::dot(delta, delta) > 0.04f) {
-            return;
-        }
-        const auto axis = glm::normalize(delta);
-        const auto u = glm::normalize(glm::cross(axis, std::abs(axis.y) < 0.9f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0)));
-        const auto v = glm::cross(axis, u);
-        for (int i = 0; i < sides; ++i) {
-            const float angle0 = glm::two_pi<float>() * i / sides;
-            const float angle1 = glm::two_pi<float>() * (i + 1) / sides;
-            const auto n0 = u * std::cos(angle0) + v * std::sin(angle0);
-            const auto n1 = u * std::cos(angle1) + v * std::sin(angle1);
-            const auto a0 = vertex(start + radius(a) * n0, n0);
-            const auto a1 = vertex(start + radius(a) * n1, n1);
-            const auto b0 = vertex(end + radius(b) * n0, n0);
-            const auto b1 = vertex(end + radius(b) * n1, n1);
-            vertices.insert(vertices.end(), { a0, b0, a1, a1, b0, b1 });
-        }
-    }
-
-    void joint_sphere(std::vector<HandVertex>& vertices, const XrHandJointLocationEXT& joint)
-    {
-        constexpr int rings = 4;
-        const auto at = [&](int ring, int side) {
-            const float latitude = glm::pi<float>() * ring / rings;
-            const float longitude = glm::two_pi<float>() * side / sides;
-            const glm::vec3 normal(std::sin(latitude) * std::cos(longitude), std::cos(latitude), std::sin(latitude) * std::sin(longitude));
-            return vertex(position(joint) + radius(joint) * normal, normal);
-        };
-        for (int ring = 0; ring < rings; ++ring) {
-            for (int side = 0; side < sides; ++side) {
-                const auto a = at(ring, side);
-                const auto b = at(ring, side + 1);
-                const auto c = at(ring + 1, side);
-                const auto d = at(ring + 1, side + 1);
-                if (ring != 0)
-                    vertices.insert(vertices.end(), { a, c, b });
-                if (ring != rings - 1)
-                    vertices.insert(vertices.end(), { b, c, d });
-            }
-        }
-    }
-}
-
-void append_hand_mesh(const HandTracking::Hand& hand, std::vector<HandVertex>& vertices)
+void append_hand_mesh(const HandTracking::Hand& hand, XrHandEXT side, HandMesh& mesh)
 {
     if (!hand.active) {
         return;
     }
-    const auto& joints = hand.joints;
-    const auto p = [&](int index) { return position(joints[index]); };
-    const auto& q = joints[XR_HAND_JOINT_PALM_EXT].pose.orientation;
-    const auto rotation = glm::normalize(glm::quat(q.w, q.x, q.y, q.z));
-    const auto normal = rotation * glm::vec3(0, 1, 0);
-    const auto across = p(XR_HAND_JOINT_INDEX_PROXIMAL_EXT) - p(XR_HAND_JOINT_LITTLE_PROXIMAL_EXT);
-    const auto wrist = p(XR_HAND_JOINT_WRIST_EXT);
-    const std::array outline {
-        wrist + across * 0.3f,
-        p(XR_HAND_JOINT_INDEX_METACARPAL_EXT),
-        p(XR_HAND_JOINT_INDEX_PROXIMAL_EXT),
-        p(XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT),
-        p(XR_HAND_JOINT_RING_PROXIMAL_EXT),
-        p(XR_HAND_JOINT_LITTLE_PROXIMAL_EXT),
-        p(XR_HAND_JOINT_LITTLE_METACARPAL_EXT),
-        wrist - across * 0.3f,
-    };
-    const auto center = p(XR_HAND_JOINT_PALM_EXT);
-    const auto thickness = normal * std::clamp(joints[XR_HAND_JOINT_PALM_EXT].radius * 0.5f, 0.008f, 0.015f);
-    for (size_t i = 0; i < outline.size(); ++i) {
-        const auto a = outline[i];
-        const auto b = outline[(i + 1) % outline.size()];
-        triangle(vertices, center + thickness, a + thickness, b + thickness, normal);
-        triangle(vertices, center - thickness, b - thickness, a - thickness, -normal);
-        const auto edge = b - a;
-        const auto side = glm::cross(edge, normal);
-        if (glm::dot(side, side) > 0.000001f) {
-            const auto side_normal = glm::normalize(side);
-            triangle(vertices, a + thickness, a - thickness, b + thickness, side_normal);
-            triangle(vertices, b + thickness, a - thickness, b - thickness, side_normal);
-        }
+    const auto& model = hand_model(side);
+    // Both embedded hands fit in one 16-bit indexed draw. Avoid wrapping if a
+    // caller accidentally appends the same hand repeatedly.
+    if (mesh.vertices.size() + model.vertices.size() > UINT16_MAX) {
+        return;
+    }
+    std::array<M4, XR_HAND_JOINT_COUNT_EXT> skin;
+    for (size_t i = 0; i < skin.size(); ++i) {
+        const auto& pose = hand.joints[i].pose;
+        const auto& q = pose.orientation;
+        auto transform = glm::mat4_cast(glm::normalize(glm::quat(q.w, q.x, q.y, q.z)));
+        transform[3] = { pose.position.x, pose.position.y, pose.position.z, 1.0f };
+        // Located joints are already absolute in the recentered reference space.
+        // Do not multiply by the wrist again or accumulate parent transforms.
+        skin[i] = transform * glm::make_mat4(model.inverse_bind[i].data());
     }
 
-    constexpr std::array starts { XR_HAND_JOINT_THUMB_METACARPAL_EXT, XR_HAND_JOINT_INDEX_PROXIMAL_EXT,
-        XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT, XR_HAND_JOINT_RING_PROXIMAL_EXT, XR_HAND_JOINT_LITTLE_PROXIMAL_EXT };
-    for (const auto start : starts) {
-        for (int i = 0; i < 4; ++i) {
-            joint_sphere(vertices, joints[start + i]);
-            if (i < 3)
-                bone(vertices, joints[start + i], joints[start + i + 1]);
+    const auto base = static_cast<uint16_t>(mesh.vertices.size());
+    mesh.vertices.reserve(mesh.vertices.size() + model.vertices.size());
+    mesh.indices.reserve(mesh.indices.size() + model.indices.size());
+    const auto light_direction = glm::normalize(glm::vec3(-0.3f, 0.8f, 0.5f));
+    for (const auto& source : model.vertices) {
+        const glm::vec4 bind_position(source.position[0], source.position[1], source.position[2], 1.0f);
+        const glm::vec4 bind_normal(source.normal[0], source.normal[1], source.normal[2], 0.0f);
+        glm::vec4 position(0.0f);
+        glm::vec4 normal(0.0f);
+        for (size_t i = 0; i < 4; ++i) {
+            if (source.weights[i] > 0.0f) {
+                const auto& transform = skin[source.joints[i]];
+                position += source.weights[i] * (transform * bind_position);
+                normal += source.weights[i] * (transform * bind_normal);
+            }
         }
+        const float length = glm::dot(glm::vec3(normal), glm::vec3(normal));
+        const auto unit_normal = length > 0.000001f ? glm::vec3(normal) / std::sqrt(length) : glm::vec3(0, 1, 0);
+        const float light = 0.70f + 0.30f * std::max(0.0f, glm::dot(unit_normal, light_direction));
+        const auto shade = static_cast<int>(255 * light);
+        mesh.vertices.push_back({ glm::vec3(position), D3DCOLOR_XRGB(shade, shade, shade), { source.uv[0], source.uv[1] } });
+    }
+    for (const auto index : model.indices) {
+        mesh.indices.push_back(base + index);
     }
 }

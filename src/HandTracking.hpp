@@ -12,6 +12,7 @@ public:
         Inactive,
         LocateFailed,
         ControllerSource,
+        InvalidReference,
         InvalidJoints,
         Tracked };
     struct Hand {
@@ -25,11 +26,13 @@ public:
     };
 
     void initialize(XrInstance instance, XrSystemId system, bool extension_enabled, bool data_source_enabled);
-    void update(XrSession session, XrSpace space, XrTime time, bool enabled);
+    // Locate joints in an identity VIEW space, then convert through the VIEW
+    // pose returned by the API layer into the current rendering reference space.
+    void update(XrSession session, XrSpace reference_space, XrTime time, bool enabled);
     void hide();
     void shutdown();
     bool supported() const { return supported_; }
-    bool enabled() const { return hands_[0].tracker && hands_[1].tracker; }
+    bool enabled() const { return view_space_ && hands_[0].tracker && hands_[1].tracker; }
     const std::array<Hand, 2>& hands() const { return hands_; }
     std::string status() const;
 
@@ -40,8 +43,14 @@ private:
     bool supported_ = false;
     bool data_source_enabled_ = false;
     bool creation_attempted_ = false;
+    XrSpace view_space_ = XR_NULL_HANDLE;
+    XrResult reference_result_ = XR_SUCCESS;
+    XrSpaceLocationFlags reference_flags_ = 0;
     std::array<Hand, 2> hands_ {};
     PFN_xrCreateHandTrackerEXT create_ = nullptr;
     PFN_xrDestroyHandTrackerEXT destroy_ = nullptr;
     PFN_xrLocateHandJointsEXT locate_ = nullptr;
+    PFN_xrCreateReferenceSpace create_space_ = nullptr;
+    PFN_xrDestroySpace destroy_space_ = nullptr;
+    PFN_xrLocateSpace locate_space_ = nullptr;
 };

@@ -4,6 +4,7 @@
 #include "Dx.hpp"
 #include "Globals.hpp"
 #include "HandDiagnostics.hpp"
+#include "HandTexture.hpp"
 #include "Util.hpp"
 #include <d3d9_interop.h>
 #include <gtx/quaternion.hpp>
@@ -1208,7 +1209,7 @@ std::optional<XrViewState> OpenXR::update_views()
 bool OpenXR::update_vr_poses()
 {
     hand_tracking.hide();
-    hand_vertices.clear();
+    hand_mesh.clear();
     if (g::cfg.openxr_motion_compensation) {
         update_hand_poses();
     }
@@ -1308,6 +1309,8 @@ bool OpenXR::update_poses()
 
 void OpenXR::update_visual_hands(bool valid_views)
 {
+    // The hand tracker converts head-relative joints into this rendering space
+    // through the layer-provided head pose, including any motion compensation.
     hand_tracking.update(session, space, frame_state.predictedDisplayTime, g::cfg.openxr_hand_tracking);
     // Live tracked hands have no meaningful pose in replay, external cameras,
     // menus or 3DoF mode. Do not retain a previous frame's geometry there.
@@ -1315,8 +1318,9 @@ void OpenXR::update_visual_hands(bool valid_views)
     const bool render_3d = rbr::is_rendering_3d();
     const bool eligible = valid_views && rbr::get_game_mode() == rbr::GameMode::Driving && cockpit && render_3d && !g::cfg.threedof;
     if (eligible) {
-        for (const auto& hand : hand_tracking.hands()) {
-            append_hand_mesh(hand, hand_vertices);
+        const auto& hands = hand_tracking.hands();
+        for (size_t i = 0; i < hands.size(); ++i) {
+            append_hand_mesh(hands[i], i == 0 ? XR_HAND_LEFT_EXT : XR_HAND_RIGHT_EXT, hand_mesh);
         }
     }
     const auto now = std::chrono::steady_clock::now();
@@ -1324,13 +1328,13 @@ void OpenXR::update_visual_hands(bool valid_views)
         last_hand_frame_log = now;
         hand_log(std::format("Hand frame: {}; mode={}, cockpit={}, render3d={}, 3dof={}, viewFlags={}, eligible={}, vertices={}, quadViews={}, multiview={}",
             hand_tracking.status(), static_cast<int>(rbr::get_game_mode()), cockpit, render_3d, g::cfg.threedof,
-            hand_view_flags, eligible, hand_vertices.size(), is_using_quad_view_rendering(), dx::multiview_rendering_enabled()));
+            hand_view_flags, eligible, hand_mesh.vertices.size(), is_using_quad_view_rendering(), dx::multiview_rendering_enabled()));
     }
 }
 
 void OpenXR::render_hands(IDirect3DDevice9* dev, RenderTarget target)
 {
-    if (!g::cfg.openxr_hand_tracking || hand_vertices.empty() || target > FocusRight
+    if (!g::cfg.openxr_hand_tracking || hand_mesh.indices.empty() || target > FocusRight
         || rbr::get_game_mode() != rbr::GameMode::Driving || !rbr::is_using_cockpit_camera() || g::cfg.threedof) {
         return;
     }
@@ -1340,9 +1344,33 @@ void OpenXR::render_hands(IDirect3DDevice9* dev, RenderTarget target)
         if (now - last_hand_draw_log[target] >= std::chrono::seconds(5)) {
             last_hand_draw_log[target] = now;
             hand_log(std::format("Hand draw failed: {} returned 0x{:08x}; eye={}, vertices={}", operation,
-                static_cast<uint32_t>(result), static_cast<int>(target), hand_vertices.size()));
+                static_cast<uint32_t>(result), static_cast<int>(target), hand_mesh.vertices.size()));
         }
     };
+    if (!glove_texture) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last_glove_texture_attempt < std::chrono::seconds(5)) {
+            return;
+        }
+        last_glove_texture_attempt = now;
+        const auto& data = hand_texture_data();
+        // Managed textures survive D3D9 device resets and are only allocated
+        // when tracked hands are actually drawable. No external asset files.
+        auto result = dev->CreateTexture(data.levels[0].width, data.levels[0].height,
+            static_cast<UINT>(data.levels.size()), 0, D3DFMT_DXT1, D3DPOOL_MANAGED, &glove_texture, nullptr);
+        if (SUCCEEDED(result)) {
+            result = upload_hand_texture(glove_texture, data);
+        }
+        if (FAILED(result)) {
+            if (glove_texture) {
+                glove_texture->Release();
+                glove_texture = nullptr;
+            }
+            report_error("Create/upload glove texture", result);
+            return;
+        }
+        hand_log("Valve red glove renderer ready: 3028 vertices / 4899 triangles per hand; 512x512 BC1 texture with 10 mips");
+    }
     IDirect3DStateBlock9* saved = nullptr;
     if (const auto result = dev->CreateStateBlock(D3DSBT_ALL, &saved); FAILED(result)) {
         report_error("CreateStateBlock", result);
@@ -1378,7 +1406,7 @@ void OpenXR::render_hands(IDirect3DDevice9* dev, RenderTarget target)
 
     check(dev->SetVertexShader(nullptr));
     check(dev->SetPixelShader(nullptr));
-    check(dev->SetFVF(D3DFVF_XYZ | D3DFVF_DIFFUSE));
+    check(dev->SetFVF(D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1));
     transform(D3DTS_WORLD, glm::identity<M4>());
     transform(D3DTS_VIEW_LEFT, get_pose(target));
     transform(D3DTS_PROJECTION_LEFT, get_projection(target));
@@ -1410,16 +1438,33 @@ void OpenXR::render_hands(IDirect3DDevice9* dev, RenderTarget target)
     state(D3DRS_DEPTHBIAS, 0);
     state(D3DRS_SLOPESCALEDEPTHBIAS, 0);
     state(D3DRS_COLORWRITEENABLE, D3DCOLORWRITEENABLE_RED | D3DCOLORWRITEENABLE_GREEN | D3DCOLORWRITEENABLE_BLUE | D3DCOLORWRITEENABLE_ALPHA);
-    check(dev->SetTexture(0, nullptr));
-    check(dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_SELECTARG1));
-    check(dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_DIFFUSE));
+    state(D3DRS_SRGBWRITEENABLE, FALSE);
+    state(D3DRS_WRAP0, 0);
+    check(dev->SetTexture(0, glove_texture));
+    check(dev->SetTextureStageState(0, D3DTSS_COLOROP, D3DTOP_MODULATE));
+    check(dev->SetTextureStageState(0, D3DTSS_COLORARG1, D3DTA_TEXTURE));
+    check(dev->SetTextureStageState(0, D3DTSS_COLORARG2, D3DTA_DIFFUSE));
     check(dev->SetTextureStageState(0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1));
     check(dev->SetTextureStageState(0, D3DTSS_ALPHAARG1, D3DTA_DIFFUSE));
+    check(dev->SetTextureStageState(0, D3DTSS_RESULTARG, D3DTA_CURRENT));
+    check(dev->SetTextureStageState(0, D3DTSS_TEXCOORDINDEX, 0));
+    check(dev->SetTextureStageState(0, D3DTSS_TEXTURETRANSFORMFLAGS, D3DTTFF_DISABLE));
     check(dev->SetTextureStageState(1, D3DTSS_COLOROP, D3DTOP_DISABLE));
     check(dev->SetTextureStageState(1, D3DTSS_ALPHAOP, D3DTOP_DISABLE));
+    check(dev->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP));
+    check(dev->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP));
+    check(dev->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR));
+    check(dev->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR));
+    check(dev->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR));
+    check(dev->SetSamplerState(0, D3DSAMP_MIPMAPLODBIAS, 0));
+    check(dev->SetSamplerState(0, D3DSAMP_MAXMIPLEVEL, 0));
+    check(dev->SetSamplerState(0, D3DSAMP_SRGBTEXTURE, FALSE));
 
     if (success) {
-        check(dev->DrawPrimitiveUP(D3DPT_TRIANGLELIST, static_cast<UINT>(hand_vertices.size() / 3), hand_vertices.data(), sizeof(HandVertex)), "DrawPrimitiveUP");
+        check(dev->DrawIndexedPrimitiveUP(D3DPT_TRIANGLELIST, 0, static_cast<UINT>(hand_mesh.vertices.size()),
+                  static_cast<UINT>(hand_mesh.indices.size() / 3), hand_mesh.indices.data(), D3DFMT_INDEX16,
+                  hand_mesh.vertices.data(), sizeof(HandVertex)),
+            "DrawIndexedPrimitiveUP");
     }
     check(scene.finish(), "EndScene");
     check(saved->Apply(), "RestoreState");
@@ -1434,9 +1479,9 @@ void OpenXR::render_hands(IDirect3DDevice9* dev, RenderTarget target)
             IDirect3DSurface9* bound_depth = nullptr;
             dev->GetRenderTarget(0, &bound_target);
             dev->GetDepthStencilSurface(&bound_depth);
-            hand_log(std::format("Hand draw OK: eye={}, vertices={}, borrowedScene={}, targetMatches={}, depthMatches={}, viewport={}x{}",
-                static_cast<int>(target), hand_vertices.size(), borrowed_scene,
-                bound_target == current_render_context->dx_surface[target], bound_depth == current_render_context->dx_depth_stencil_surface[target], width, height));
+            hand_log(std::format("Hand draw OK: eye={}, vertices={}, borrowedScene={}, targetMatches={}, depthMatches={}, viewport={}x{}; model=Valve red gloves, triangles={}",
+                static_cast<int>(target), hand_mesh.vertices.size(), borrowed_scene,
+                bound_target == current_render_context->dx_surface[target], bound_depth == current_render_context->dx_depth_stencil_surface[target], width, height, hand_mesh.indices.size() / 3));
             if (bound_target)
                 bound_target->Release();
             if (bound_depth)
@@ -1549,7 +1594,11 @@ void OpenXR::recenter_view()
 void OpenXR::shutdown_vr()
 {
     hand_tracking.shutdown();
-    hand_vertices.clear();
+    hand_mesh.clear();
+    if (glove_texture) {
+        glove_texture->Release();
+        glove_texture = nullptr;
+    }
     synchronize_graphics_apis(true);
     g::d3d_vr->WaitDeviceIdle(true);
     cross_api_fence.fence->Release();
