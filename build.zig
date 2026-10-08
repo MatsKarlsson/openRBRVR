@@ -33,6 +33,8 @@ pub fn build(b: *std.Build) void {
         "src/API.cpp",
         "src/Dx.cpp",
         "src/Globals.cpp",
+        "src/HandMesh.cpp",
+        "src/HandTracking.cpp",
         "src/Menu.cpp",
         "src/OpenVR.cpp",
         "src/OpenXR.cpp",
@@ -87,6 +89,29 @@ pub fn build(b: *std.Build) void {
     dll.linkSystemLibrary("version");
 
     b.installArtifact(dll);
+
+    const hand_tests = b.addExecutable(.{
+        .name = "hand-tests",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    hand_tests.linkLibC();
+    hand_tests.linkSystemLibrary("user32");
+    hand_tests.addIncludePath(b.path("src"));
+    hand_tests.addIncludePath(b.path("thirdparty"));
+    hand_tests.addIncludePath(b.path("thirdparty/glm"));
+    hand_tests.addIncludePath(b.path("thirdparty/openxr"));
+    hand_tests.addIncludePath(b.path("thirdparty/openvr"));
+    hand_tests.addIncludePath(b.path("thirdparty/dxvk/src/d3d9"));
+    hand_tests.addIncludePath(b.path("thirdparty/dxvk/include/vulkan/include"));
+    hand_tests.addCSourceFiles(.{
+        .files = &.{ "tests/Hands.cpp", "src/HandTracking.cpp", "src/HandMesh.cpp" },
+        .flags = &.{ "-Wno-ignored-attributes", "-Wno-deprecated-literal-operator", "-Wno-unused-command-line-argument", "--std=c++23" },
+    });
+    const test_step = b.step("test", "Test hand tracking lifecycle, visibility, mesh and configuration");
+    test_step.dependOn(&b.addRunArtifact(hand_tests).step);
 
     // For compile_commands.json
     var targets: std.ArrayListUnmanaged(*std.Build.Step.Compile) = .empty;

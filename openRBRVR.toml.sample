@@ -25,6 +25,8 @@ renderReplays3d = true
 runtime = 'steamvr'
 
 [OpenXR]
+# Experimental visual hands, cockpit driving only. Requires runtime hand tracking.
+handTracking = false
 motionCompensation = false
 peripheralAntiAliasing = 0
 predictionDampening = 0

@@ -46,6 +46,45 @@ Please refer to the following table to check if your device is supported:
 Enable OpenXR runtime from `Options -> Plugins -> openRBRVR -> VR runtime` or
 edit `openRBRVR.toml` to contain `runtime = 'openxr'`.
 
+## Can I see my tracked hands in the cockpit?
+
+Experimental visual hand tracking is available in OpenXR mode. Enable
+`Options -> Plugins -> openRBRVR -> OpenXR settings -> Show tracked hands`
+and save the plugin settings, or set:
+
+```toml
+runtime = 'openxr'
+
+[OpenXR]
+handTracking = true
+```
+
+It is off by default. Your **32-bit OpenXR runtime** must expose
+`XR_EXT_hand_tracking`, and the headset/PC connection must supply hand joints.
+Quest 3 is the initial target; support depends on the runtime and connection,
+not just on whether the headset supports standalone hand tracking. An
+unsupported runtime shows `UNAVAILABLE` beside the toggle and continues normally.
+
+With Virtual Desktop / VDXR, also enable **Forward tracking data to PC** in the
+Quest Virtual Desktop app under **Settings -> Streaming -> Advanced Options**.
+Headset system-menu hand gestures can work while PC hand-joint forwarding is
+disabled. See the [VDXR developer's setup explanation](https://community.khronos.org/t/handjointlocations-all-wrong/111702/7).
+If the plugin's `Hand input` status remains `L: inactive, R: inactive`, it has
+no active bare-hand data to draw even though the trackers were created.
+
+Hands appear only while driving with a cockpit camera and positional head
+tracking. They hide in menus, pauses, replays, external cameras and 3DoF mode,
+or whenever their tracking becomes inactive or invalid. Each hand hides and
+recovers independently. The toggle takes effect without restarting the game.
+
+The first version uses simple procedural palms and fingers. These are visual
+only: they do not steer, grab, operate menus or snap to the steering wheel.
+Hands may intersect the wheel/dashboard or float away from the in-game wheel.
+No extra hand model or texture installation is required.
+
+See [hand-tracking implementation and validation notes](HAND_TRACKING.md) for
+runtime checks and the remaining headset tests.
+
 ## OpenComposite error: unsupported apptype
 
 openRBRVR has a native OpenXR implementation, so OpenComposite is not required.

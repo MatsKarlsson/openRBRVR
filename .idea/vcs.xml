@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/thirdparty/dxvk" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/thirdparty/dxvk/include/native/directx" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/thirdparty/dxvk/include/spirv" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/thirdparty/dxvk/include/vulkan" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/thirdparty/dxvk/subprojects/libdisplay-info" vcs="Git" />
+  </component>
+</project>
