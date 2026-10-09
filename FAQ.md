@@ -59,17 +59,6 @@ runtime = 'openxr'
 handTracking = true
 ```
 
-It is off by default. Your **32-bit OpenXR runtime** must expose
-`XR_EXT_hand_tracking`, and the headset/PC connection must supply hand joints.
-Quest 3 is the initial target; support depends on the runtime and connection,
-not just on whether the headset supports standalone hand tracking. An
-unsupported runtime shows `UNAVAILABLE` beside the toggle and continues normally.
-
-With Virtual Desktop / VDXR, also enable **Forward tracking data to PC** in the
-Quest Virtual Desktop app under **Settings -> Streaming -> Advanced Options**.
-Headset system-menu hand gestures can work while PC hand-joint forwarding is
-disabled. See the [VDXR developer's setup explanation](https://community.khronos.org/t/handjointlocations-all-wrong/111702/7).
-
 Hands appear only while driving with a cockpit camera and positional head
 tracking. They hide in menus, pauses, replays, external cameras and 3DoF mode,
 or whenever their tracking becomes inactive or invalid. Each hand hides and
@@ -91,6 +80,17 @@ The embedded glove assets are copyright Valve Corporation; see their
 
 See [hand-tracking implementation and validation notes](HAND_TRACKING.md) for
 runtime checks and the remaining headset tests.
+
+### Required settings for Quest 3
+
+Enable hand tracking in Quest3 
+ * Enable **Settings -> Hands & Body -> Hands and body tracking**
+
+In Virtual Desktop / VDXR 
+* Enable **Forward tracking data to PC** in the 
+Quest Virtual Desktop app under **Settings -> Streaming -> Advanced Options**. 
+* Enable **Settings -> Input -> Hand Tracking**
+
 
 ## OpenComposite error: unsupported apptype
 
