@@ -34,6 +34,28 @@ the plugin.
 Plugin settings can be changed from `Options -> Plugins -> openRBRVR` and saved
 to `Plugins/openRBRVR.toml` via the menu.
 
+### Experimental hand tracking
+
+Available from 2.3.0-beta.1. Requires OpenXR and a runtime that supports hand
+tracking. Currently tested with Quest 3; other headsets have not been tested.
+
+Enable hand tracking through the OpenXR plugin menu and save the settings,
+or edit the existing entries in `Plugins/openRBRVR.toml`:
+
+```toml
+runtime = 'openxr'
+
+[OpenXR]
+handTracking = true
+```
+
+With Virtual Desktop, enable **Settings -> Streaming -> Advanced Options ->
+Forward tracking data to PC** in the Quest app.
+
+Hands appear while driving in the cockpit. This feature displays hands;
+it does not provide gestures or gameplay controls. The glove models and texture
+are embedded in the plugin DLL.
+
 ## Frequently asked questions
 
 - See the [FAQ](https://github.com/Detegr/openRBRVR/blob/master/FAQ.md).
@@ -42,7 +64,7 @@ to `Plugins/openRBRVR.toml` via the menu.
 
 The project uses [Zig](https://ziglang.org/) as the build system. To build the
 project, download the [Zig compiler version
-0.14.0](https://ziglang.org/download/0.14.0/zig-windows-x86_64-0.14.0.zip),
+0.15.2](https://ziglang.org/download/0.15.2/zig-x86_64-windows-0.15.2.zip),
 extract it to a path of your liking and invoke `zig build`.
 
 For a release build, use `zig build --release=fast`. To build directly to RBR
