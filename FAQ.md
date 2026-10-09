@@ -48,7 +48,7 @@ edit `openRBRVR.toml` to contain `runtime = 'openxr'`.
 
 ## Can I see my tracked hands in the cockpit?
 
-Experimental visual hand tracking is available in OpenXR mode. Enable
+Visual hand tracking is available in OpenXR mode. Enable
 `Options -> Plugins -> openRBRVR -> OpenXR settings -> Show tracked hands`
 and save the plugin settings, or set:
 
@@ -69,8 +69,6 @@ With Virtual Desktop / VDXR, also enable **Forward tracking data to PC** in the
 Quest Virtual Desktop app under **Settings -> Streaming -> Advanced Options**.
 Headset system-menu hand gestures can work while PC hand-joint forwarding is
 disabled. See the [VDXR developer's setup explanation](https://community.khronos.org/t/handjointlocations-all-wrong/111702/7).
-If the plugin's `Hand input` status remains `L: inactive, R: inactive`, it has
-no active bare-hand data to draw even though the trackers were created.
 
 Hands appear only while driving with a cockpit camera and positional head
 tracking. They hide in menus, pauses, replays, external cameras and 3DoF mode,

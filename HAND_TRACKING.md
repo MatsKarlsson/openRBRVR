@@ -14,24 +14,18 @@ after toggling the feature off/on or restarting the OpenXR session. Location
 failures recover on the next successful frame; repeated errors do not log every
 frame.
 
-| Runtime/device path | 32-bit extension check | Headset tracking/rendering |
-| --- | --- | --- |
-| Installed VDXR / Virtual Desktop path on this development PC | A separate 32-bit loader probe on 2026-10-08 exposed `XR_EXT_hand_tracking` and `XR_EXT_hand_tracking_data_source`; instance creation succeeded | After enabling PC forwarding, stage logs reported both hands tracked and successful peripheral/focus multiview draws. The user confirmed visible procedural hands. The replacement Valve gloves still need an in-headset fit/deformation check. |
-| Meta/Oculus PC runtime with Quest 3 / Link | Not verified on this PC | Not verified; initial target, no compatibility claim yet |
-| Runtime without `XR_EXT_hand_tracking` or system hand support | Covered by mocked tests | Feature remains unavailable; no trackers or visuals |
+Currently only the Quest 3 + Virtual Desktop / VDXR combination has been confirmed 
+to provide hand tracking.
 
-The active 32-bit runtime registry entry during the probe was
-`C:\Program Files\Virtual Desktop Streamer\OpenXR\virtualdesktop-openxr-32.json`.
-No runtime configuration was changed.
+Should work with any 32-bit OpenXR runtime that exposes `XR_EXT_hand_tracking` and
+supplies hand-joint data. The plugin does not generate fallback poses.
+
+**Other runtimes may support hand tracking. Most likely:
+Meta Quest 2 / 3S / Pro, PICO 4 / 4 Ultra.**
 
 For Virtual Desktop, enable **Settings -> Streaming -> Advanced Options ->
 Forward tracking data to PC** in the Quest app. The [VDXR developer describes
 this opt-in requirement](https://community.khronos.org/t/handjointlocations-all-wrong/111702/7).
-Working Quest menu gestures do not establish that PC forwarding is enabled.
-The 2026-10-08 21:03 stage log confirmed that the feature was on, head views were
-valid and cockpit rendering was eligible, but no active bare-hand joints were
-available to generate geometry. After forwarding was enabled, the user confirmed
-visible hands; later logs showed both hands tracked with successful draws.
 
 The application uses the core [Khronos hand-tracking API](https://registry.khronos.org/OpenXR/specs/1.1/man/html/xrLocateHandJointsEXT.html).
 When available, [hand-tracking data-source selection](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XrHandTrackingDataSourceInfoEXT.html)
