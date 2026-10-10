@@ -35,6 +35,7 @@ public:
     bool enabled() const { return view_space_ && hands_[0].tracker && hands_[1].tracker; }
     const std::array<Hand, 2>& hands() const { return hands_; }
     std::string status() const;
+    const XrPosef& reference_pose() const { return reference_pose_; }
 
 private:
     void destroy_trackers();
@@ -42,6 +43,7 @@ private:
     std::chrono::steady_clock::time_point last_status_log_ {};
     bool supported_ = false;
     bool data_source_enabled_ = false;
+    XrPosef reference_pose_ {};
     bool creation_attempted_ = false;
     XrSpace view_space_ = XR_NULL_HANDLE;
     XrResult reference_result_ = XR_SUCCESS;

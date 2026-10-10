@@ -7,7 +7,7 @@ const OPENRBRVR_VERSION = .{
     .openRBRVR_Minor = "3",
     .openRBRVR_Patch = "0",
     .openRBRVR_Tweak = "0",
-    .openRBRVR_TweakStr = "-beta.1",
+    .openRBRVR_TweakStr = "-beta.2",
 };
 
 pub fn build(b: *std.Build) void {
@@ -35,6 +35,7 @@ pub fn build(b: *std.Build) void {
         "src/Globals.cpp",
         "src/HandAssets.cpp",
         "src/HandMesh.cpp",
+        "src/HandMenu.cpp",
         "src/HandTracking.cpp",
         "src/Menu.cpp",
         "src/OpenVR.cpp",
@@ -102,6 +103,7 @@ pub fn build(b: *std.Build) void {
     hand_tests.linkLibC();
     hand_tests.linkSystemLibrary("user32");
     hand_tests.addIncludePath(b.path("src"));
+    hand_tests.addIncludePath(b.path("thirdparty/minhook/include"));
     hand_tests.addIncludePath(b.path("thirdparty"));
     hand_tests.addIncludePath(b.path("thirdparty/glm"));
     hand_tests.addIncludePath(b.path("thirdparty/openxr"));
@@ -109,7 +111,7 @@ pub fn build(b: *std.Build) void {
     hand_tests.addIncludePath(b.path("thirdparty/dxvk/src/d3d9"));
     hand_tests.addIncludePath(b.path("thirdparty/dxvk/include/vulkan/include"));
     hand_tests.addCSourceFiles(.{
-        .files = &.{ "tests/Hands.cpp", "src/HandTracking.cpp", "src/HandMesh.cpp", "src/HandAssets.cpp" },
+        .files = &.{ "tests/Hands.cpp", "src/HandTracking.cpp", "src/HandMesh.cpp", "src/HandAssets.cpp", "src/HandMenu.cpp" },
         .flags = &.{ "-Wno-ignored-attributes", "-Wno-deprecated-literal-operator", "-Wno-unused-command-line-argument", "--std=c++23" },
     });
     const test_step = b.step("test", "Test hand tracking lifecycle, visibility, mesh and configuration");
@@ -129,7 +131,7 @@ pub fn build(b: *std.Build) void {
     preview.addIncludePath(b.path("thirdparty/glm"));
     preview.addIncludePath(b.path("thirdparty/openxr"));
     preview.addCSourceFiles(.{
-        .files = &.{ "tools/HandPreview.cpp", "src/HandAssets.cpp", "src/HandMesh.cpp" },
+        .files = &.{ "tools/HandPreview.cpp", "src/HandAssets.cpp", "src/HandMesh.cpp", "src/HandMenu.cpp" },
         .flags = &.{ "-Wno-ignored-attributes", "--std=c++23" },
     });
     const preview_run = b.addRunArtifact(preview);
