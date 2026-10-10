@@ -1,7 +1,7 @@
 ## 2.3.0-beta.2
 
-- New  menu to place ignition start + CFH buttons in cars. Do pistol and pinch thumb+index 
-  finger to open the menu.  
+- Add a hand-operated menu: face the left palm toward the headset, do a "pistol", release then
+  pinch the thumb and index finger to open or close it.
 
 ## 2.3.0-beta.1
 
