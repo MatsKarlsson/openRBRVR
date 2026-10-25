@@ -56,8 +56,6 @@ jobs:
         path: zig-out\bin\openRBRVR.pdb
 
   release:
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'workflow_dispatch' }}
     needs: build
