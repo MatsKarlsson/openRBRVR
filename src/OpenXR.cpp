@@ -3,7 +3,6 @@
 #include "D3DSceneScope.hpp"
 #include "Dx.hpp"
 #include "Globals.hpp"
-#include "HandDiagnostics.hpp"
 #include "HandTexture.hpp"
 #include "Util.hpp"
 #include <d3d9_interop.h>
@@ -1325,7 +1324,7 @@ void OpenXR::update_visual_hands(bool valid_views)
     const auto now = std::chrono::steady_clock::now();
     if (g::cfg.openxr_hand_tracking && now - last_hand_frame_log >= std::chrono::seconds(5)) {
         last_hand_frame_log = now;
-        hand_log(std::format("Hand frame: {}; mode={}, cockpit={}, render3d={}, 3dof={}, viewFlags={}, eligible={}, vertices={}, quadViews={}, multiview={}",
+        dbg(std::format("Hand frame: {}; mode={}, cockpit={}, render3d={}, 3dof={}, viewFlags={}, eligible={}, vertices={}, quadViews={}, multiview={}",
             hand_tracking.status(), static_cast<int>(rbr::get_game_mode()), rbr::is_using_cockpit_camera(), rbr::is_rendering_3d(), g::cfg.threedof,
             hand_view_flags, eligible, hand_mesh.vertices.size(), is_using_quad_view_rendering(), dx::multiview_rendering_enabled()));
     }
@@ -1342,7 +1341,7 @@ void OpenXR::render_hands(IDirect3DDevice9* dev, RenderTarget target)
         const auto now = std::chrono::steady_clock::now();
         if (now - last_hand_draw_log[target] >= std::chrono::seconds(5)) {
             last_hand_draw_log[target] = now;
-            hand_log(std::format("Hand draw failed: {} returned 0x{:08x}; eye={}, vertices={}", operation,
+            dbg(std::format("Hand draw failed: {} returned 0x{:08x}; eye={}, vertices={}", operation,
                 static_cast<uint32_t>(result), static_cast<int>(target), hand_mesh.vertices.size()));
         }
     };
@@ -1368,7 +1367,7 @@ void OpenXR::render_hands(IDirect3DDevice9* dev, RenderTarget target)
             report_error("Create/upload glove texture", result);
             return;
         }
-        hand_log("Valve red glove renderer ready: 3028 vertices / 4899 triangles per hand; 512x512 BC1 texture with 10 mips");
+        dbg("Valve red glove renderer ready: 3028 vertices / 4899 triangles per hand; 512x512 BC1 texture with 10 mips");
     }
     IDirect3DStateBlock9* saved = nullptr;
     if (const auto result = dev->CreateStateBlock(D3DSBT_ALL, &saved); FAILED(result)) {
@@ -1478,7 +1477,7 @@ void OpenXR::render_hands(IDirect3DDevice9* dev, RenderTarget target)
             IDirect3DSurface9* bound_depth = nullptr;
             dev->GetRenderTarget(0, &bound_target);
             dev->GetDepthStencilSurface(&bound_depth);
-            hand_log(std::format("Hand draw OK: eye={}, vertices={}, borrowedScene={}, targetMatches={}, depthMatches={}, viewport={}x{}; model=Valve red gloves, triangles={}",
+            dbg(std::format("Hand draw OK: eye={}, vertices={}, borrowedScene={}, targetMatches={}, depthMatches={}, viewport={}x{}; model=Valve red gloves, triangles={}",
                 static_cast<int>(target), hand_mesh.vertices.size(), borrowed_scene,
                 bound_target == current_render_context->dx_surface[target], bound_depth == current_render_context->dx_depth_stencil_surface[target], width, height, hand_mesh.indices.size() / 3));
             if (bound_target)
